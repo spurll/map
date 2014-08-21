@@ -1,0 +1,87 @@
+body { color: #ffffff; background-color: #222222; overflow-y:auto; }
+h1 { text-align: center; }
+
+.header {
+	text-align: center;
+	margin: 0 auto;
+	padding: 20px;
+}
+
+.license {
+	text-align: center;
+	font-size: 80%;
+	margin: 0 auto;
+	padding: 20px;
+}
+
+.window {
+	width: 1000px;
+
+	margin: 0 auto;
+
+	overflow: hidden;
+}
+
+.map {
+	width: 750px;
+	height: 600px;
+}
+
+.panel {
+	width: 224px;
+	height: 574px;
+
+	position: relative;
+	float: right;
+
+	padding: 10px;
+	border-style: solid;
+	border-color: #ffffff;
+	border: 2px 2px 2px 2px;
+}
+
+.info {
+	overflow: auto;
+}
+
+.info_title {
+	font-weight: bold;
+}
+
+.info_details {
+	padding-bottom: 10px;
+}
+
+.bottom {
+	position: absolute;
+	bottom: 10px;
+}
+
+a:link { text-decoration: none; color: #888888; }
+a:visited { text-decoration: none; color: #888888; }
+a:hover { text-decoration: none; color: #ffffff; }
+a:active { text-decoration: none; color: #888888; }
+
+label { font-variant: small-caps; }
+
+#hidden_content {
+	display: none;
+}
+
+div.marker {
+	width: 12px;
+	height: 12px;
+	border: 2px solid #008888;
+	border-radius: 10px;
+	background-color: #00ffff;
+	opacity: 0.5;
+}
+
+a.label {
+	color: #ffffff;
+	font-size: 11pt;
+	font-weight: bold;
+	text-shadow: black 0.1em 0.1em 0.2em;
+	display: inline;
+}
+
