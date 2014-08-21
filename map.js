@@ -1,27 +1,23 @@
 var highlight;
 var display;
-var markers = [];
+var pointElements = [];
 var styleCache = {};
 var highlightStyleCache = {};
 
+// Create some point elements.
 var winnipeg = ol.proj.transform([-97.15, 49.85], 'EPSG:4326', 'EPSG:3857');
 var london = ol.proj.transform([0.10, 51.53], 'EPSG:4326', 'EPSG:3857');
 
-// Adds a single point to the map.
-function addMarker(id, pos, name, link) {
+// Adds a point element to the map.
+function addPointElement(pos, name, link) {
+	id = pointElements.length;
+
 	// Create HTML elements.
-	var markerID = id + "_marker";
-//	var labelID = id + "_label";
-
-//	var labelElement = '<div class="overlay label" id="' + labelID + '">' + name + '</div>';
-//	var markerElement = '<a href="' + link + '" target="_blank"><div class="marker overlay" id="' + markerID + '" title="' + name + '">&nbsp;</div></a>';
-//	var labelElement = '<a class="overlay label" id="' + labelID + '" target="_blank" href="' + link + '">' + name + '</a>';
+	var markerID = "marker_" + id;
 	var markerElement = '<div class="marker" id="' + markerID + '" title="' + name + '">&nbsp;</div>';
-
-//	$("#hidden_content").append(labelElement);
 	$("#hidden_content").append(markerElement);
 
-	// Create map marker.
+	// Create map overlay object for marker.
 	var markerOverlay = new ol.Overlay({
 		position: pos,
 		positioning: 'center-center',
@@ -31,65 +27,62 @@ function addMarker(id, pos, name, link) {
 	map.addOverlay(markerOverlay);
 
 	// Add to object to cache.
-	var markerObject = new function() {
+	var pointElement = new function() {
 		this.id = id;
+		this.markerID = markerID;
 		this.name = name;
 		this.position = pos;
 		this.link = link;
+		this.selected = false;
 		this.overlay = markerOverlay;
-		this.element = markerElement;
-
-		// Could highlight by editing the div. Have a "highlighted" property.
 
 		this.info = function() {
 			return '<div class="info_title">' + this.name + '</div><div class="info_details"><a href="' + this.link + '" target="_blank">' + this.name + ' on Wikipedia</a></div>';
 		};
-	}
-	markers.push(markerObject);
 
-	// Create map label.
-//	var label = new ol.Overlay({
-//		position: pos,
-//		offset: [0, 0],
-//		element: $("#" + labelID)
-//	});
-//	map.addOverlay(label);
+		this.select = function() {
+			$("#" + this.markerID).addClass("selected");
+			this.selected = true;
+		}
+
+		this.deselect = function() {
+			$("#" + this.markerID).removeClass("selected");
+			this.selected = false;
+		}
+	}
+	pointElements.push(pointElement);
+}
+
+function distance(a, b) {
+	return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
 }
 
 function toggleVectorLayer(checkbox){
 	vectorLayer.setVisible(checkbox.checked);
 }
 
+// Define the satelite map layer.
+var sateliteLayer = new ol.layer.Tile({
+	source: new ol.source.MapQuest({layer: 'sat'})
+})
+
 // Define the vector layer (used for country borders, etc.)
-var vectorLayer = new ol.layer.Vector({
+var countryLayer = new ol.layer.Vector({
 	source: new ol.source.GeoJSON({
 		projection: 'EPSG:3857',
 		url: 'countries.geojson'
 	}),
-	style: function(feature, resolution) {
-		var text = resolution < 5000 ? feature.get('name') : '';
+	style: function(feature) {
+		var text = feature.get('name');
 		if (!styleCache[text]) {
 			styleCache[text] = [new ol.style.Style({
 				fill: new ol.style.Fill({
 					color: 'rgba(49, 159, 211, 0.1)'
-//					color: 'rgba(255, 255, 255, 0.1)'
 				}),
 				stroke: new ol.style.Stroke({
-//					color: '#319fd3',
 					color: '#319fd3',
 					width: 1
 				}),
-//				text: new ol.style.Text({
-//					font: '11px Calibri, sans-serif',
-//					text: text,
-//					fill: new ol.style.Fill({
-//						color: '#000000'
-//					}),
-//					stroke: new ol.style.Stroke({
-//						color: '#ffffff',
-//						width: 3
-//					})
-//				})
 			})];
 		}
 		return styleCache[text];
@@ -100,10 +93,8 @@ var vectorLayer = new ol.layer.Vector({
 var map = new ol.Map({
 	target: 'map',
 	layers: [
-		new ol.layer.Tile({
-			source: new ol.source.MapQuest({layer: 'sat'})
-		}),
-		vectorLayer
+		sateliteLayer,
+		countryLayer,
 	],
 	view: new ol.View({
 		center: winnipeg,
@@ -115,30 +106,17 @@ var map = new ol.Map({
 
 var featureOverlay = new ol.FeatureOverlay({
 	map: map,
-	style: function(feature, resolution) {
-		var text = resolution < 5000 ? feature.get('name') : '';
+	style: function(feature) {
+		var text = feature.get('name');
 		if (!highlightStyleCache[text]) {
 			highlightStyleCache[text] = [new ol.style.Style({
 				stroke: new ol.style.Stroke({
-					color: '#319fd3',
-//					color: '#007f00',
+					color: '#ffffff',
 					width: 1
 				}),
 				fill: new ol.style.Fill({
 					color: 'rgba(49, 159, 211, 0.2)'
-//					color: 'rgba(0, 127, 0, 0.1)'
 				}),
-//				text: new ol.style.Text({
-//					font: '11px Calibri, sans-serif',
-//					text: text,
-//					fill: new ol.style.Fill({
-//						color: '#ffffff'
-//					}),
-//					stroke: new ol.style.Stroke({
-//						color: '#007f00',
-//						width: 3
-//					})
-//				})
 			})];
 		}
 		return highlightStyleCache[text];
@@ -152,10 +130,14 @@ function displayInfo(pixel) {
 	// Check overlays for "point elements" and highlight/display.
 	var area = 10;	// Anything within 10 pixels is a "hit".
 
-	for (var i = 0; i < markers.length; i++) {
-		var m = markers[i];
-		if (distance(pixel, map.getPixelFromCoordinate(m.position)) <= area) {
-			info += m.info();
+	for (var i = 0; i < pointElements.length; i++) {
+		var p = pointElements[i];
+		if (distance(pixel, map.getPixelFromCoordinate(p.position)) <= area) {
+			p.select();
+			info += p.info();
+		}
+		else if (p.selected) {
+			p.deselect();
 		}
 	}
 
@@ -194,14 +176,8 @@ function displayInfo(pixel) {
 	$("#info").html(info);
 }
 
-function distance(a, b) {
-	return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
-}
-
 // Determines what to populate the info panel with.
 function getFeatureInfo(feature) {
-	//feature.getId() + ': ' + feature.get('name')
-
 	var name = feature.get('name');
 	var link;
 
@@ -221,11 +197,6 @@ map.on('click', function(evt) {
 	displayInfo(evt.pixel);
 });
 
-//$(map.getViewport()).on('mousemove', function(evt) {
-//	var pixel = map.getEventPixel(evt.originalEvent);
-//	displayFeatureInfo(pixel);
-//});
-
-addMarker(0, winnipeg, "Winnipeg", "http://en.wikipedia.org/wiki/Winnipeg");
-addMarker(1, london, "London", "http://en.wikipedia.org/wiki/London");
+addPointElement(winnipeg, "Winnipeg", "http://en.wikipedia.org/wiki/Winnipeg");
+addPointElement(london, "London", "http://en.wikipedia.org/wiki/London");
 
