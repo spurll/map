@@ -1,16 +1,23 @@
-var highlight;
-var display;
 var pointElements = [];
+var areaElements = [];
+var highlightedFeatures = [];
 var styleCache = {};
 var highlightStyleCache = {};
+var clickDeselects = false;
+var nextID = 0;
 
-// Create some point elements.
-var winnipeg = ol.proj.transform([-97.15, 49.85], 'EPSG:4326', 'EPSG:3857');
-var london = ol.proj.transform([0.10, 51.53], 'EPSG:4326', 'EPSG:3857');
+var winnipeg = [-97.15, 49.85]
+var london = [0.10, 51.53]
+var singleArea = [[[0, 0], [0, 15], [15, 15], [15, 0]]];
+var doubleArea = [[[10, 10], [10, 15], [15, 15], [15, 10]], [[-20, -20], [-15, -20], [-15, -15], [-20, -15]]]
+
+addAreaElement(singleArea, "Example Area", "Some information.", "http://en.wikipedia.org/wiki/Fred_Penner");
+addAreaElement(doubleArea, "Example Double Area", "Some information.", "http://en.wikipedia.org/wiki/Raffi_(musician)");
 
 // Adds a point element to the map.
-function addPointElement(pos, name, link) {
-	id = pointElements.length;
+function addPointElement(position, name, text, link) {
+	id = nextID++;
+	position = ol.proj.transform(position, 'EPSG:4326', 'EPSG:3857');
 
 	// Create HTML elements.
 	var markerID = "marker_" + id;
@@ -19,7 +26,7 @@ function addPointElement(pos, name, link) {
 
 	// Create map overlay object for marker.
 	var markerOverlay = new ol.Overlay({
-		position: pos,
+		position: position,
 		positioning: 'center-center',
 		element: $("#" + markerID),
 		stopEvent: false
@@ -31,13 +38,14 @@ function addPointElement(pos, name, link) {
 		this.id = id;
 		this.markerID = markerID;
 		this.name = name;
-		this.position = pos;
+		this.position = position;
+		this.text = text;
 		this.link = link;
 		this.selected = false;
 		this.overlay = markerOverlay;
 
 		this.info = function() {
-			return '<div class="info_title">' + this.name + '</div><div class="info_details"><a href="' + this.link + '" target="_blank">' + this.name + ' on Wikipedia</a></div>';
+			return '<div class="info_title">' + this.name + '</div><div class="info_details">' + this.text + ' <a href="' + this.link + '" target="_blank">More information.</a></div>';
 		};
 
 		this.select = function() {
@@ -50,15 +58,40 @@ function addPointElement(pos, name, link) {
 			this.selected = false;
 		}
 	}
+
 	pointElements.push(pointElement);
+}
+
+function addAreaElement(area, name, text, link) {
+	id = nextID++;
+
+	var feature = new ol.Feature({
+		geometry: new ol.geom.Polygon(area).transform('EPSG:4326', 'EPSG:3857'),
+		name: name,
+		id: id,
+		link: link,
+		text: text,
+	});
+
+	areaElements.push(feature)
 }
 
 function distance(a, b) {
 	return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
 }
 
-function toggleVectorLayer(checkbox){
-	vectorLayer.setVisible(checkbox.checked);
+function toggleCountryLayer(checkbox){
+	countryLayer.setVisible(checkbox.checked);
+}
+
+function inList(object, list) {
+    for (var i = 0; i < list.length; i++) {
+        if (list[i] === object) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // Define the satelite map layer.
@@ -66,16 +99,16 @@ var sateliteLayer = new ol.layer.Tile({
 	source: new ol.source.MapQuest({layer: 'sat'})
 })
 
-// Define the vector layer (used for country borders, etc.)
+// Define the vector layer used for country borders.
 var countryLayer = new ol.layer.Vector({
 	source: new ol.source.GeoJSON({
 		projection: 'EPSG:3857',
 		url: 'countries.geojson'
 	}),
 	style: function(feature) {
-		var text = feature.get('name');
-		if (!styleCache[text]) {
-			styleCache[text] = [new ol.style.Style({
+		var id = feature.get('id');
+		if (!styleCache[id]) {
+			styleCache[id] = [new ol.style.Style({
 				fill: new ol.style.Fill({
 					color: 'rgba(49, 159, 211, 0.1)'
 				}),
@@ -85,8 +118,22 @@ var countryLayer = new ol.layer.Vector({
 				}),
 			})];
 		}
-		return styleCache[text];
+		return styleCache[id];
 	}
+});
+
+// Define the vector layer used for non-country area elements.
+var areaElementLayer = new ol.layer.Vector({
+	source: new ol.source.Vector({
+		projection: 'EPSG:3857',
+		features: areaElements,
+	}),
+	style: new ol.style.Style({
+		stroke: new ol.style.Stroke({
+			color: '#ff0000',
+			width: 1
+		})
+	})
 });
 
 // Define the map.
@@ -95,10 +142,11 @@ var map = new ol.Map({
 	layers: [
 		sateliteLayer,
 		countryLayer,
+		areaElementLayer,
 	],
 	view: new ol.View({
-		center: winnipeg,
-		zoom: 3,
+		center: ol.proj.transform(winnipeg, 'EPSG:4326', 'EPSG:3857'),
+		zoom: 0,
 		minZoom: 2,
 		maxZoom: 9,
 	})
@@ -107,68 +155,67 @@ var map = new ol.Map({
 var featureOverlay = new ol.FeatureOverlay({
 	map: map,
 	style: function(feature) {
-		var text = feature.get('name');
-		if (!highlightStyleCache[text]) {
-			highlightStyleCache[text] = [new ol.style.Style({
+		var id = feature.get('id');
+		if (!highlightStyleCache[id]) {
+			highlightStyleCache[id] = [new ol.style.Style({
 				stroke: new ol.style.Stroke({
 					color: '#ffffff',
-					width: 1
+					width: 2
 				}),
 				fill: new ol.style.Fill({
-					color: 'rgba(49, 159, 211, 0.2)'
+					color: 'rgba(255, 255, 255, 0.1)'
+//					color: 'rgba(49, 159, 211, 0.2)'
 				}),
 			})];
 		}
-		return highlightStyleCache[text];
+		return highlightStyleCache[id];
 	}
 });
 
 // Displays information about whatever features (area elements) are beneath the given pixel.
 function displayInfo(pixel) {
 	var info = "";
+	var addHighlight = [];
 
-	// Check overlays for "point elements" and highlight/display.
-	var area = 10;	// Anything within 10 pixels is a "hit".
+	// Check for "point elements" and highlight/display.
+	var area = 10;
+	// Anything within 10 pixels is a "hit".
 
+	// Highlight point elements and add them to info.
 	for (var i = 0; i < pointElements.length; i++) {
 		var p = pointElements[i];
-		if (distance(pixel, map.getPixelFromCoordinate(p.position)) <= area) {
+		if (distance(pixel, map.getPixelFromCoordinate(p.position)) <= area && (!clickDeselects || !p.selected)) {
 			p.select();
 			info += p.info();
-		}
-		else if (p.selected) {
+		} else if (p.selected) {
 			p.deselect();
 		}
 	}
 
-	// HIGHLIGHT THE POINT ELEMENT, TOO.
-
-	// Check features for "area elements" and highlight/display.
-	var feature = map.forEachFeatureAtPixel(pixel, function(feature, layer) {
-		return feature;
+	// Check features for area elements to  highlight/display.
+	map.forEachFeatureAtPixel(pixel, function(feature, layer) {
+		if (!inList(feature, addHighlight)) {
+			if (!clickDeselects || !inList(feature, highlightedFeatures)) {
+				addHighlight.push(feature);
+			}
+		}
 	});
 
-	// TEST TO SEE WHAT HAPPENS WITH MULTIPLE FEAUTRES THAT OVERLAP.
-	// ENSURE THAT BOTH AREA AND POINT EVENTS DISPLAY AT THE SAME TIME.
-
-	if (feature) {
-		info += getFeatureInfo(feature);
+	// Remove highlights from all existing highlighted areas.
+	for (var i = 0; i < highlightedFeatures.length; i++) {
+		featureOverlay.removeFeature(highlightedFeatures[i]);
 	}
+	highlightedFeatures = [];
 
-	if (feature !== highlight) {
-		if (highlight) {
-			featureOverlay.removeFeature(highlight);
-		}
-		if (feature) {
-			featureOverlay.addFeature(feature);
-		}
-		highlight = feature;
+	// Add new highlights to area elements.
+	for (var i = 0; i < addHighlight.length; i++) {
+		// Highlight the area element.
+		featureOverlay.addFeature(addHighlight[i]);
+		highlightedFeatures.push(addHighlight[i]);
+
+		// Add area element info to the info panel.
+		info += getFeatureInfo(addHighlight[i]);
 	}
-
-
-
-	// SHOULD REMOVE HIGHLIGHT INSTEAD OF ADDING IT IF IT'S ALREADY IN THE DISPLAY.
-	// SHOULD JUST KEEP LISTS OF THINGS THAT ARE HIGHLIGHTED AND THINGS THAT AREN'T.
 
 	if (info == "")
 		info = "&nbsp;";
@@ -181,14 +228,17 @@ function getFeatureInfo(feature) {
 	var name = feature.get('name');
 	var link;
 
-	var info = '<div class="info_title">' + name + '</div>';
+	var info = '<div class="info_title">' + name + '</div><div class="info_details">';
 
-	if (info.hasOwnProperty("link"))
-		link = feature.get('link');
-	else
+	text = feature.get("text");
+	if (text)
+		info += text + " ";
+
+	link = feature.get("link")
+	if (!link)
 		link = "https://en.wikipedia.org/wiki/" + name.replace(" ", "_");
 
-	info += '<div class="info_details"><a href="' + link + '" target="_blank">' + name + ' on Wikipedia</a></div>';
+	info += '<a href="' + link + '" target="_blank">More information.</a></div>';
 
 	return info;
 }
@@ -197,6 +247,6 @@ map.on('click', function(evt) {
 	displayInfo(evt.pixel);
 });
 
-addPointElement(winnipeg, "Winnipeg", "http://en.wikipedia.org/wiki/Winnipeg");
-addPointElement(london, "London", "http://en.wikipedia.org/wiki/London");
+addPointElement(winnipeg, "Winnipeg", "Something about Winnipeg.", "http://en.wikipedia.org/wiki/Winnipeg");
+addPointElement(london, "London", "Something about London.", "http://en.wikipedia.org/wiki/London");
 
