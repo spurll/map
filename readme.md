@@ -33,4 +33,4 @@ Written by Gem Newman. [GitHub](https://github.com/spurll/) | [Blog](http://www.
 
 This work is licensed under Creative Commons [BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).
 
-This work makes use of [OpenLayers 3](http://openlayers.org), licensed under the <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">Creative Commons BY-NC-SA 3.0 license</a>. Map code uses OpenLayers 3, Copyright &copy; OpenLayers Contributors, licensed under the [BSD 2-Clause License](https://tldrlegal.com/license/bsd-2-clause-license-(freebsd)).
+This work makes use of [OpenLayers 3](http://openlayers.org), licensed under the [BSD 2-Clause License](https://tldrlegal.com/license/bsd-2-clause-license-(freebsd)).
